@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>🌙 Bloco de Notas</title>
+<!-- Emoji Picker Element (biblioteca completa estilo WhatsApp/Discord) -->
+<script src="https://unpkg.com/emoji-picker-element@1.21.0/index.js" type="module"></script>
+<!-- Emoji Toolkit (opcional, se quiser depois renderizar :alias: -> emoji/imagem) -->
+<link href="https://cdn.jsdelivr.net/npm/emoji-toolkit@7.0.0/extras/css/emoji.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/emoji-toolkit@7.0.0/lib/js/emoji-toolkit.min.js"></script>
+<style>
+/* Cursor */
+body { cursor: none; }
+/* Garante que o cursor do sistema nunca apareça (mãozinha/texto) */
+html, body, * { cursor: none !important; }
+[draggable="true"], [draggable="false"] { cursor: none !important; }
+#star-cursor {
+  position: fixed;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+  z-index: 2147483647;
+  transform: translate(-50%, -50%);
+  background: url('data:image/svg+xml;utf8,<svg fill="%23ff7ac6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>') no-repeat center center;
+  background-size: contain;
+}
+
+/* Brilhinhos do cursor */
+.star-particle {
+  position: fixed;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.8;
+  z-index: 9998;
+  animation: sparkle 0.6s linear forwards;
+}
+@keyframes sparkle {
+  0% { transform: translate(0,0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; }
+}
+
+/* ===== VARIÁVEIS ===== */
+:root{
+  --bg:#0f0f1a;
+  --card:#18182a;
+  --accent:#ff7ac6;
+  --accent2:#c77dff;
+  --accent-rgb:255,122,198;
+  --text:#fabbdf;
+  --muted:#b8b8d1;
+}
+
+/* Tema azul neon */
+body.blue-theme {
+  --bg: #0f0f1a;       /* fundo do editor */
+  --card: #101020;      /* fundo das notas escuro */
+  --accent: #54c7bf;    /* cor do texto e botões */
+  --accent2: #2da69e;   /* gradiente dos botões */
+  --accent-rgb:84,199,191;
+  --text: #ccefff;      /* cor do texto */
+  --muted: #7fdfff;     /* cor do texto secundário */
+}
+/* ===== ESTILOS GERAIS ===== */
+*{box-sizing:border-box;font-family:Segoe UI,system-ui;margin:0;padding:0;}
+body{min-height:100vh;background:radial-gradient(circle at 35% 15%, rgba(var(--accent-rgb),0.06) 0%, rgba(var(--accent-rgb),0) 55%),radial-gradient(circle at top,#1c1c3a,#090912);color:var(--text);}
+
+#particles{position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;}
+#home, #editorView, #overlay, #menu{position: relative; z-index: 1;}
+
+/* HOME */
+#home{padding:26px}
+.top{display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;}
+.title{font-size:1.5rem; font-weight:700; color:var(--accent);}
+.search{background:var(--card); border:none; border-radius:16px; padding:10px 16px; color:var(--text); outline:none;}
+.grid{margin-top:24px; display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:18px;}
+.card{background:var(--card); border-radius:22px; padding:16px; cursor:pointer; box-shadow:0 0 25px rgba(var(--accent-rgb),.18); transition:.15s;}
+.card:hover{transform:translateY(-4px)}
+.card.dragging{opacity:.6; transform: scale(1.05);}
+.card h3{margin:0;color:var(--accent);font-size:1rem}
+.card p{font-size:.8rem; color:var(--muted); max-height:3.6em; overflow:hidden;}
+.new{display:flex; align-items:center; justify-content:center; font-size:2.2rem; color:var(--accent);}
+
+
+/* ===== TEMA PERSONALIZADO (paleta) ===== */
+
+/* ===== PAINEL DE TEMA (in-page, estilo app) ===== */
+.theme-panel{
+  position:absolute;
+  right:0;
+  top:52px;
+  width:min(340px, 92vw);
+  background:var(--card);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:18px;
+  box-shadow:0 20px 60px rgba(0,0,0,.55);
+  padding:12px;
+  display:none;
+  z-index:60;
+}
+.theme-panel.show{ display:block; }
+.theme-panel-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.theme-panel-title{
+  font-weight:700;
+  color:var(--text);
+}
+.theme-panel-close{
+  width:34px;height:34px;
+  border:none;border-radius:12px;
+  background:rgba(255,255,255,.06);
+  color:var(--text);
+  cursor:pointer;
+}
+.iro-picker{
+  padding:6px 4px;
+}
+/* deixa o container dos botões no topo como âncora do painel */
+.top-controls{ position:relative; }
+
+.theme-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+}
+#themeColor{
+  position:absolute;
+  width:1px;height:1px;
+  opacity:0;
+  pointer-events:none;
+}
+
+/* BOTÕES */
+.home-btn, .actions button{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border:none; border-radius:14px; padding:7px 14px; font-size:.75rem; color:#fff; cursor:pointer; transition: .2s;
+}
+.home-btn:hover, .actions button:hover{transform: scale(1.05);}
+
+/* CONTEXT MENU */
+#menu{position:fixed; background:var(--card); border-radius:14px; padding:6px; display:none; z-index:50;}
+#menu button{display:block; width:100%; background:none; border:none; color:var(--text); padding:8px 14px; cursor:pointer; text-align:left;}
+#menu button:hover{background:rgba(255,255,255,.08)}
+
+/* MODAL */
+#overlay{position:fixed; inset:0; background:rgba(10,10,30,.65); backdrop-filter:blur(6px); display:none; opacity:0; transition:opacity .25s ease; z-index:10;}
+#overlay.show{opacity:1}
+#editorView{position:fixed; inset:0; display:none; align-items:center; justify-content:center; opacity:0; transform:scale(.95); transition:.25s ease; z-index:20;}
+#editorView.show{opacity:1; transform:scale(1);}
+.editor-card{width:94%; max-width:900px; background:var(--card); border-radius:26px; padding:20px; box-shadow:0 0 40px rgba(var(--accent-rgb),.25); display:flex; flex-direction:column; gap:14px;}
+.bar{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
+.bar h1{margin:0; font-size:1.3rem; color:var(--accent); cursor:pointer;}
+.actions{display:flex; gap:8px; flex-wrap:wrap;}
+.editor{min-height:280px; max-height:55vh; overflow-y:auto; background:var(--bg); border-radius:20px; padding: 18px 60px 60px 18px; outline:none; line-height:1.6; scrollbar-width: thin; scrollbar-color: var(--accent) transparent;}
+.editor::-webkit-scrollbar{width:8px;}
+.editor::-webkit-scrollbar-thumb{background:var(--accent); border-radius:10px;}
+.editor:empty::before{content:"✦ Escreva aqui... seu arco começa hoje ✦"; color:#6f6fa5;}
+.footer{display:flex; justify-content:space-between; font-size:.7rem; color:var(--muted);}
+
+/* ===== EMOJI PICKER (Opção A: emoji-picker-element, estilo WhatsApp no cantinho) ===== */
+.editor-wrap{ position:relative; }
+.emoji-toggle{
+  position:absolute;
+  right:14px;
+  bottom:14px;
+  width:40px; height:40px;
+  border:none;
+  border-radius:14px;
+  cursor:pointer;
+  background:rgba(255,255,255,.06);
+  color:var(--text);
+  font-size:18px;
+  display:flex; align-items:center; justify-content:center;
+  transition:.12s;
+  z-index:25;
+}
+.emoji-toggle:hover{ transform:scale(1.06); background:rgba(255,255,255,.10); }
+
+#emojiPanel{
+  position:absolute;
+  right:14px;
+  bottom:62px;
+  width:min(380px, 92vw);
+  background:var(--card);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:18px;
+  box-shadow:0 20px 60px rgba(0,0,0,.55);
+  padding:10px;
+  display:none;
+  z-index:30;
+}
+#emojiPanel.show{ display:block; }
+
+/* Ajuste do componente */
+emoji-picker{
+  width:100%;
+  height:360px;
+  --background: var(--card);
+  --border-color: rgba(255,255,255,.08);
+  --button-active-background: rgba(255,255,255,.10);
+  --button-hover-background: rgba(255,255,255,.08);
+  --input-border-color: rgba(255,255,255,.10);
+  --input-font-color: var(--text);
+  --input-placeholder-color: rgba(255,255,255,.45);
+  --outline-color: rgba(255,255,255,.18);
+  --category-icon-color: rgba(255,255,255,.65);
+  --category-icon-active-color: #fff;
+}
+
+
+
+/* ===== BOTÃO DE CALENDÁRIO (FAB) + PICKER NATIVO ===== */
+.editor-card{ position:relative; }
+.calendar-fab{
+  position:absolute;
+  right:18px;
+  bottom:18px;
+  width:42px;
+  height:42px;
+  border:none;
+  border-radius:50%;
+  background:rgba(255,255,255,.08);
+  color:var(--text);
+  font-size:18px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
+  cursor:none !important;
+  transition:.15s;
+  z-index:40;
+}
+.calendar-fab:hover{ transform:scale(1.08); background:rgba(255,255,255,.12); }
+/* input invisível só pra abrir o calendário nativo */
+#nativeDatePicker{
+  position:absolute;
+  right:18px;
+  bottom:18px;
+  width:42px;
+  height:42px;
+  opacity:0;
+  pointer-events:none;
+  accent-color: var(--accent);
+}
+
+
+/* ===== Cards: título com '...' + tooltip nativo ===== */
+.card h3{
+  max-width:100%;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* ===== Data da nota no canto superior direito ===== */
+.card{ position:relative; overflow:visible; }
+.note-date-badge{
+  z-index:2;
+  background:rgba(0,0,0,.18);
+  padding:3px 8px;
+  border-radius:999px;
+  backdrop-filter: blur(6px);
+
+  position:absolute;
+  top:12px;
+  right:14px;
+  font-size:.68rem;
+  color:var(--text);
+  opacity:.9;
+  pointer-events:none;
+}
+
+
+
+.card{
+  cursor: grab;
+  transform: translateZ(0);
+
+  backface-visibility: hidden;
+  user-select: none;
+}
+
+
+.grid{
+  contain: layout style;
+}
+
+.placeholder{
+  border: 2px dashed #bbb;
+  border-radius: 14px;
+  background: rgba(0,0,0,.04);
+  height: 120px; /* mesma altura das notas */
+  transition: all .18s ease;
+  visibility: hidden;
+}
+
+.card.dragging{
+  transform:
+    scale(1.04)
+    rotate(var(--tilt, .4deg));
+
+  box-shadow:
+    0 28px 70px rgba(0,0,0,.45),
+    0 10px 30px rgba(0,0,0,.25);
+
+  cursor: grabbing;
+  pointer-events:none;
+}
+
+
+
+.card{
+  will-change: transform;
+}
+
+
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5"></script>
+</head>
+<body>
+<canvas id="particles"></canvas>
+<div id="star-cursor"></div>
+<div id="home">
+<div class="top">
+<div class="title">🌙 Bloco de Notas</div>
+<div class="top-controls" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+<input class="search" oninput="search(this.value)" placeholder="🔍 Buscar nota..."/>
+<button class="home-btn" onclick="exportNotes()">⬇️</button>
+<button class="home-btn" onclick="importNotes()">⬆️</button>
+<button class="home-btn theme-btn" onclick="toggleThemePanel(event)" type="button">🎨 Tema</button>
+<div class="theme-panel" id="themePanel" onclick="event.stopPropagation()">
+<div class="theme-panel-head">
+<div class="theme-panel-title">Escolha uma cor</div>
+<button class="theme-panel-close" onclick="closeThemePanel()" type="button">✖</button>
+</div>
+<div class="iro-picker" id="iroPicker"></div>
+</div>
+</div>
+</div>
+<div class="grid" id="grid"></div>
+</div>
+<div id="overlay" onclick="closeEditor()"></div>
+<div id="editorView">
+<div class="editor-card" onclick="event.stopPropagation()">
+<div class="bar">
+<h1 id="noteTitle" onclick="rename()">✏️ Nova Nota</h1>
+<div class="actions">
+<button onclick="togglePin()">📌 Fixar</button>
+<button onclick="clearNote()">🧹 Limpar</button>
+<button onclick="removeNote()">🗑️ Excluir</button>
+<button onclick="closeEditor()">🔙 Fechar</button>
+</div>
+</div>
+<div class="editor-wrap">
+<div class="editor" contenteditable="" id="editor"></div>
+<button aria-label="Emotes" class="emoji-toggle" onclick="toggleEmojiPanel(event)" type="button">😄</button>
+<div id="emojiPanel" onclick="event.stopPropagation()">
+<emoji-picker id="emojiPicker"></emoji-picker>
+</div>
+</div>
+<div class="footer"><div id="date" style="display:none"></div><div>Salvo automaticamente ✨</div></div>
+<input aria-label="Selecionar data" id="nativeDatePicker" type="date"/><button aria-label="Calendário" class="calendar-fab" id="calendarFab" type="button">📅</button></div>
+</div>
+<div id="menu">
+<button onclick="togglePinMenu()">📌 Fixar / Desafixar</button>
+<button onclick="deleteMenu()">🗑️ Excluir</button>
+</div>
+<input accept=".json" hidden="" id="importFile" type="file"/>
+<script>
+
+let placeholder = null;
+
+
+/* ===== CURSOR + PARTICULAS ===== */
+const cursor = document.getElementById("star-cursor");
+document.addEventListener("pointermove", e => {
+  cursor.style.left = e.clientX + "px";
+  cursor.style.top = e.clientY + "px";
+  // cursor segue a cor do tema
+  const currentAccent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#ff7ac6";
+  updateCursorStar(currentAccent);
+
+  // brilhinhos
+  for(let i=0;i<2;i++){
+    const sparkle = document.createElement("div");
+    sparkle.className = "star-particle";
+    sparkle.style.left = e.clientX + "px";
+    sparkle.style.top = e.clientY + "px";
+    const dx = (Math.random() - 0.5) * 40 + "px";
+    const dy = (Math.random() - 0.5) * 40 + "px";
+    sparkle.style.setProperty("--dx", dx);
+    sparkle.style.setProperty("--dy", dy);
+    const rgb = getComputedStyle(document.documentElement).getPropertyValue("--accent-rgb").trim() || "255,122,198";
+    sparkle.style.background = `radial-gradient(circle, rgb(${rgb}), rgba(${rgb},0))`;
+    document.body.appendChild(sparkle);
+    setTimeout(()=> sparkle.remove(), 600);
+  }
+});
+
+/* ===== PARTICULAS PRINCIPAIS ===== */
+const canvas = document.getElementById("particles");
+const ctx = canvas.getContext("2d");
+
+function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.addEventListener("resize", resizeCanvas); resizeCanvas();
+
+const particles = [];
+for (let i = 0; i < 60; i++) {
+  particles.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, r: Math.random()*2+1, speed: Math.random()*0.6+0.2, opacity: Math.random()*0.5+0.3 });
+}
+
+function animateParticles() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  particles.forEach(p=>{
+    ctx.beginPath();
+    ctx.fillStyle = (()=>{const rgb=getComputedStyle(document.documentElement).getPropertyValue("--accent-rgb").trim()||"255,122,198"; return `rgba(${rgb},${p.opacity})`;})();
+    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fill();
+    p.y -= p.speed;
+    if(p.y < -10){ p.y = canvas.height+10; p.x = Math.random()*canvas.width; }
+  });
+  requestAnimationFrame(animateParticles);
+}
+animateParticles();
+
+/* ===== RESTANTE DO BLOCO DE NOTAS ===== */
+const grid=document.getElementById("grid"), editor=document.getElementById("editor"), noteTitle=document.getElementById("noteTitle"), overlay=document.getElementById("overlay"), editorView=document.getElementById("editorView"), menu=document.getElementById("menu"), dateEl=document.getElementById("date");
+let data=JSON.parse(localStorage.getItem("notes"))||{notes:[],current:null}, menuIndex=null;
+// Normaliza notas antigas: garante createdISO/lastEditedISO
+function normalizeNotesDates(){
+  try{
+    (data.notes||[]).forEach(n=>{
+      if(!n.createdISO){
+        // tenta reaproveitar datas existentes ou cria agora
+        n.createdISO = n.lastEditedISO || new Date().toISOString();
+      }
+      if(!n.lastEditedISO){
+        n.lastEditedISO = n.createdISO;
+      }
+    });
+    localStorage.setItem("notes", JSON.stringify(data));
+  }catch(e){}
+}
+normalizeNotesDates();
+
+
+function save(){localStorage.setItem("notes",JSON.stringify(data))}
+function playSound(){const s=document.getElementById("clickSound"); s.currentTime=0; s.volume=.35; s.play()}
+
+
+
+function timeAgoPtBr(iso){
+  if(!iso) return "";
+  const t = new Date(iso).getTime();
+  const now = Date.now();
+  let diff = Math.max(0, Math.floor((now - t)/1000)); // seg
+  if(diff < 5) return "agora";
+  if(diff < 60) return `Há ${diff} seg`;
+  const min = Math.floor(diff/60);
+  if(min < 60) return `Há ${min} min`;
+  const hr = Math.floor(min/60);
+  if(hr < 24) return `Há ${hr} hr`;
+  const day = Math.floor(hr/24);
+  if(day < 30) return `Há ${day} d`;
+  const mon = Math.floor(day/30);
+  if(mon < 12) return `Há ${mon} mês`;
+  const yr = Math.floor(mon/12);
+  return `Há ${yr} ano`;
+}
+
+
+function formatExactPtBr(iso){
+  if(!iso) return "";
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2,"0");
+  const mm = String(d.getMonth()+1).padStart(2,"0");
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2,"0");
+  const mi = String(d.getMinutes()).padStart(2,"0");
+  return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+}
+
+
+function render(filter=""){
+  grid.innerHTML="";
+  data.notes.map((n,i)=>({...n,i})).sort((a,b)=>b.pin-a.pin).filter(n=>n.title.toLowerCase().includes(filter))
+    .forEach(n=>{
+      const c=document.createElement("div"); c.className="card"; c.dataset.index=n.i;
+      // Badge de tempo (canto superior direito)
+      const iso = data.notes[n.i]?.createdISO ?? data.notes[n.i]?.lastEditedISO ?? "";
+      const badge = document.createElement("span");
+      badge.className = "note-date-badge";
+      badge.dataset.iso = iso;
+      badge.textContent = timeAgoPtBr(iso) || "—";
+      badge.title = formatExactPtBr(iso);
+      c.appendChild(badge);
+
+      // Título com tooltip (mostra completo no hover)
+      const h3 = document.createElement("h3");
+      h3.textContent = `${n.title} ${n.pin ? "📌" : ""}`;
+      h3.title = n.title;
+      c.appendChild(h3);
+
+      // Preview
+      const p = document.createElement("p");
+      p.textContent = (n.content || "")
+  .replace(/<[^>]+>/g, "")
+  .replace(/&nbsp;/g, "")
+  .trim();
+      c.appendChild(p);
+
+      
+      c.onclick = ()=>{
+        if(didDrag) return;
+        open(n.i);
+      };
+
+      c.oncontextmenu=e=>{ e.preventDefault(); menuIndex=n.i; menu.style.display="block"; menu.style.left=e.pageX+"px"; menu.style.top=e.pageY+"px"; };
+      grid.appendChild(c);
+    });
+  const add=document.createElement("div"); add.className="card new"; add.textContent="+"; add.onclick=create; grid.appendChild(add);
+}
+
+
+function updateTimeBadges(){
+  document.querySelectorAll(".note-date-badge").forEach(b=>{
+    const iso = b.dataset.iso || "";
+    b.textContent = timeAgoPtBr(iso);
+  });
+}
+setInterval(updateTimeBadges, 1000);
+
+render();
+document.body.onclick=()=>menu.style.display="none";
+
+function create(){ 
+  const now = new Date().toISOString();
+
+  data.notes.push({
+    title:`Nota ${data.notes.length+1}`,
+    content:"",
+    pin:false,
+    createdISO: now,
+    lastEditedISO: now
+  }); 
+
+  save(); 
+  open(data.notes.length-1); 
+  playSound(); 
+}
+function open(i){ data.current=i; noteTitle.textContent=data.notes[i].title; editor.innerHTML=data.notes[i].content; updateDate(); overlay.style.display="block"; editorView.style.display="flex"; setTimeout(()=>{overlay.classList.add("show");editorView.classList.add("show")},10); playSound(); }
+function closeEditor(){ saveCurrent(); overlay.classList.remove("show"); editorView.classList.remove("show"); setTimeout(()=>{overlay.style.display="none"; editorView.style.display="none"; render();},250); playSound(); }
+function saveCurrent(){ 
+  if(data.current!=null){ 
+    data.notes[data.current].content = editor.innerHTML;
+    data.notes[data.current].lastEditedISO = new Date().toISOString();
+    save(); 
+  } 
+}
+function removeNote(){ if(!confirm("Excluir nota?"))return; data.notes.splice(data.current,1); data.current=null; closeEditor(); }
+function deleteMenu(){ data.notes.splice(menuIndex,1); save(); render(); }
+function togglePin(){ data.notes[data.current].pin=!data.notes[data.current].pin; save(); }
+function togglePinMenu(){ data.notes[menuIndex].pin=!data.notes[menuIndex].pin; save(); render(); }
+function clearNote(){ if(confirm("Limpar conteúdo?")){ editor.innerHTML=""; saveCurrent() } }
+function rename(){ const n=prompt("Novo nome:",noteTitle.textContent); if(n){data.notes[data.current].title=n; noteTitle.textContent=n; save()} }
+function search(v){ render(v.toLowerCase()) }
+function updateDate(){ const d=new Date(); dateEl.textContent=d.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}); }
+
+document.getElementById("importFile").addEventListener("change", e=>{ const file=e.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>{ localStorage.setItem("notes",reader.result); location.reload(); }; reader.readAsText(file); });
+function exportNotes(){ const blob=new Blob([localStorage.getItem("notes")],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="backup-bloco-de-notas.json"; a.click(); }
+function importNotes(){ document.getElementById("importFile").click(); }
+
+document.addEventListener("keydown", e=>{ if(e.key==="Escape" && editorView.classList.contains("show")) closeEditor(); });
+/* ===== EMOJI PICKER (Opção A) ===== */
+const emojiPanel = document.getElementById("emojiPanel");
+const emojiPicker = document.getElementById("emojiPicker");
+
+function toggleEmojiPanel(e){
+  e?.stopPropagation();
+  emojiPanel.classList.toggle("show");
+}
+function closeEmojiPanel(){
+  emojiPanel.classList.remove("show");
+}
+
+emojiPicker.addEventListener("emoji-click", (event) => {
+  // insere o emoji unicode no cursor do contenteditable
+  insertEmojiAtCaret(event.detail.unicode);
+});
+
+// Fecha o painel clicando fora (mas não fecha ao clicar no editor/botão/painel)
+document.addEventListener("click", (e) => {
+  if(!emojiPanel.classList.contains("show")) return;
+  const t = e.target;
+  if(emojiPanel.contains(t) || t.closest(".emoji-toggle") || t.closest("#editor")) return;
+  closeEmojiPanel();
+});
+document.addEventListener("keydown", (e)=>{ if(e.key === "Escape") closeEmojiPanel(); });
+
+/* Insere no cursor do contenteditable */
+function insertEmojiAtCaret(emojiChar){
+  editor.focus();
+
+  const sel = window.getSelection();
+  if(!sel || sel.rangeCount === 0){
+    editor.innerHTML += emojiChar;
+    saveCurrent();
+    return;
+  }
+
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+
+  const node = document.createTextNode(emojiChar);
+  range.insertNode(node);
+
+  range.setStartAfter(node);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  saveCurrent();
+}
+
+
+/* ===== TEMA POR PALETA (cor escolhida pelo usuário) ===== */
+const THEME_KEY = "notes_theme_accent_hex";
+
+function hexToRgb(hex){
+  const h = (hex||"").replace("#","").trim();
+  if(h.length !== 6) return {r:255,g:122,b:198};
+  const n = parseInt(h, 16);
+  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+}
+
+function rgbToHex(r,g,b){
+  const to = (v)=>("0"+Math.max(0,Math.min(255,Math.round(v))).toString(16)).slice(-2);
+  return "#" + to(r) + to(g) + to(b);
+}
+
+function rgbToHsl(r,g,b){
+  r/=255; g/=255; b/=255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b);
+  let h=0, s=0, l=(max+min)/2;
+  if(max!==min){
+    const d=max-min;
+    s = l>0.5 ? d/(2-max-min) : d/(max+min);
+    switch(max){
+      case r: h=(g-b)/d + (g<b?6:0); break;
+      case g: h=(b-r)/d + 2; break;
+      case b: h=(r-g)/d + 4; break;
+    }
+    h/=6;
+  }
+  return {h, s, l};
+}
+
+function hslToRgb(h,s,l){
+  let r,g,b;
+  if(s===0){ r=g=b=l; }
+  else{
+    const hue2rgb=(p,q,t)=>{
+      if(t<0) t+=1;
+      if(t>1) t-=1;
+      if(t<1/6) return p+(q-p)*6*t;
+      if(t<1/2) return q;
+      if(t<2/3) return p+(q-p)*(2/3 - t)*6;
+      return p;
+    };
+    const q = l<0.5 ? l*(1+s) : l + s - l*s;
+    const p = 2*l - q;
+    r = hue2rgb(p,q,h+1/3);
+    g = hue2rgb(p,q,h);
+    b = hue2rgb(p,q,h-1/3);
+  }
+  return { r:Math.round(r*255), g:Math.round(g*255), b:Math.round(b*255) };
+}
+
+function setVar(name, value){
+  document.documentElement.style.setProperty(name, value);
+}
+
+function applyThemeColor(hex, {save=true} = {}){
+  if(!hex) return;
+  // 1) Accent base
+  setVar("--accent", hex);
+  const {r,g,b} = hexToRgb(hex);
+  setVar("--accent-rgb", `${r},${g},${b}`);
+
+  // 2) Accent2: pequena variação (puxando pro roxo/azul, tipo gradiente "bonito")
+  const hsl = rgbToHsl(r,g,b);
+  const h2 = (hsl.h + 0.06) % 1;              // ~ +22°
+  const s2 = Math.min(1, hsl.s + 0.10);
+  const l2 = Math.min(0.72, Math.max(0.35, hsl.l + 0.08));
+  const rgb2 = hslToRgb(h2, s2, l2);
+  setVar("--accent2", rgbToHex(rgb2.r, rgb2.g, rgb2.b));
+
+  // 3) Text/muted: mantém legível no fundo escuro, mas puxa pro tom do tema
+  const textRgb = hslToRgb(hsl.h, Math.min(0.55, hsl.s), 0.86);
+  const mutedRgb = hslToRgb(hsl.h, Math.min(0.35, hsl.s), 0.72);
+  setVar("--text", rgbToHex(textRgb.r, textRgb.g, textRgb.b));
+  setVar("--muted", rgbToHex(mutedRgb.r, mutedRgb.g, mutedRgb.b));
+
+  // 4) Cursor: atualiza estrela com a cor escolhida
+  updateCursorStar(hex);
+
+  // 5) Persistência
+  if(save){
+    try{ localStorage.setItem(THEME_KEY, hex); }catch(e){}
+  }
+}
+
+// ----- Painel in-page (iro.js) -----
+const themePanel = document.getElementById("themePanel");
+let iroPicker = null;
+
+function ensureIroPicker(){
+  if(iroPicker) return;
+  const current = (getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#ff7ac6");
+  iroPicker = new iro.ColorPicker("#iroPicker", {
+    width: 260,
+    color: current,
+    layout: [
+      { component: iro.ui.Wheel },
+      { component: iro.ui.Slider, options: { sliderType: "value" } }
+    ]
+  });
+  iroPicker.on("color:change", (c) => {
+    // c.hexString já vem com #
+    applyThemeColor(c.hexString);
+  });
+}
+
+function toggleThemePanel(e){
+  e?.stopPropagation();
+  if(!themePanel) return;
+  ensureIroPicker();
+  themePanel.classList.toggle("show");
+}
+
+function closeThemePanel(){
+  themePanel?.classList.remove("show");
+}
+
+// fecha clicando fora
+document.addEventListener("click", () => closeThemePanel());
+document.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeThemePanel(); });
+
+
+
+function updateCursorStar(hex){
+  const safe = (hex||"#ff7ac6").replace("#","%23");
+  const svg = `url('data:image/svg+xml;utf8,<svg fill="${safe}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>')`;
+  const cursorEl = document.getElementById("star-cursor");
+  if(cursorEl){
+    cursorEl.style.background = `${svg} no-repeat center center`;
+    cursorEl.style.backgroundSize = "contain";
+  }
+}
+
+// Aplica tema salvo ao carregar
+(function initTheme(){
+  let saved = null;
+  try{ saved = localStorage.getItem(THEME_KEY); }catch(e){}
+  if(saved && /^#([0-9a-fA-F]{6})$/.test(saved)){
+    applyThemeColor(saved, {save:false});
+  }else{
+    // garante cursor coerente com o tema padrão
+    const current = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#ff7ac6";
+    updateCursorStar(current);
+  }
+})();
+
+
+
+
+// ===== Calendário nativo (estilo sistema quando disponível) =====
+const calendarFabEl = document.getElementById("calendarFab");
+const nativeDatePickerEl = document.getElementById("nativeDatePicker");
+
+function openNativeCalendar(){
+  if(!nativeDatePickerEl) return;
+  if(typeof nativeDatePickerEl.showPicker === "function"){
+    nativeDatePickerEl.showPicker();
+    return;
+  }
+  nativeDatePickerEl.focus({preventScroll:true});
+  nativeDatePickerEl.click();
+}
+
+if(calendarFabEl){
+  calendarFabEl.addEventListener("click", (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    openNativeCalendar();
+  });
+}
+
+let draggedEl = null;
+
+let draggedCard = null;
+let startIndex = null;
+let pointerOffsetX = 0;
+let pointerOffsetY = 0;
+let isDragging = false;
+let didDrag = false;
+
+
+function animateGrid(){
+  const cards = [...grid.querySelectorAll(".card:not(.dragging)")];
+
+  const first = new Map();
+
+  cards.forEach(card=>{
+    first.set(card, card.getBoundingClientRect());
+  });
+
+  requestAnimationFrame(()=>{
+
+    cards.forEach(card=>{
+      const last = card.getBoundingClientRect();
+      const f = first.get(card);
+
+      const dx = f.left - last.left;
+      const dy = f.top  - last.top;
+
+      if(dx || dy){
+
+        card.animate([
+          {
+            transform:`translate(${dx}px, ${dy}px)`
+          },
+          {
+            transform:`translate(0,0)`
+          }
+        ],{
+          duration:220,
+          easing:"cubic-bezier(.18,.67,.38,.99)"
+        });
+
+      }
+    });
+
+  });
+}
+
+
+grid.addEventListener("pointerdown", (e)=>{
+
+  document.body.style.userSelect = "none";
+
+  const card = e.target.closest(".card");
+
+  if(!card || card.classList.contains("new")) return;
+
+  draggedCard = card;
+  card.setPointerCapture(e.pointerId);
+
+  startIndex = [...grid.children].indexOf(card);
+   
+  const rect = card.getBoundingClientRect();
+  
+
+
+  placeholder = document.createElement("div");
+  placeholder.className = "card placeholder";
+
+  placeholder.style.width = rect.width + "px";
+  placeholder.style.height = rect.height + "px";
+
+  grid.insertBefore(placeholder, card);
+
+
+  pointerOffsetX = e.clientX - rect.left;
+  pointerOffsetY = e.clientY - rect.top;
+
+
+
+  card.classList.add("dragging");
+
+
+
+
+  card.style.width = rect.width + "px";
+  card.style.height = rect.height + "px";
+
+  card.style.position = "fixed";
+  card.style.left = (e.clientX - rect.width/2) + "px";
+  card.style.top  = (e.clientY - rect.height/2) + "px";
+
+
+
+  card.style.zIndex = 9999;
+
+  card.style.cursor = "grabbing";
+
+
+  isDragging = true;
+});
+
+document.addEventListener("pointermove", (e)=>{
+
+  if(!isDragging || !draggedCard) return;
+  didDrag = true;
+
+
+  const x = e.clientX - pointerOffsetX;
+  const y = e.clientY - pointerOffsetY;
+
+  draggedCard.style.left = x + "px";
+  draggedCard.style.top = y + "px";
+
+  const after = getClosestCard(e.clientX, e.clientY);
+  const center = window.innerWidth / 2;
+  const tilt = (e.clientX - center) / 60;
+
+draggedCard.style.setProperty("--tilt", tilt + "deg");
+
+
+  if(!after || after === draggedCard) return;
+
+  const rect = after.getBoundingClientRect();
+  const before = e.clientY < rect.top + rect.height/2;
+
+  animateGrid();
+
+  grid.insertBefore(
+    placeholder,
+    before ? after : after.nextSibling
+  );
+
+
+});
+
+document.addEventListener("pointerup", (e)=>{
+  document.body.style.userSelect = "";
+
+
+  if(!draggedCard) return;
+  draggedCard.classList.remove("dragging");
+
+
+
+  placeholder.replaceWith(draggedCard);
+  placeholder = null;
+
+  draggedCard.style.pointerEvents = "";
+  draggedCard.style.position = "";
+  draggedCard.style.left = "";
+  draggedCard.style.top = "";
+  draggedCard.style.width = "";
+  draggedCard.style.height = "";
+  draggedCard.style.zIndex = "";
+  draggedCard.style.transform = "";
+  draggedCard.style.cursor = "";
+  draggedCard.style.transition = "";
+
+  updateNotesOrder();
+  draggedCard.releasePointerCapture(e.pointerId);
+
+  draggedCard = null;
+  isDragging = false;
+  setTimeout(()=> didDrag = false, 50);
+
+});
+
+function getClosestCard(x, y){
+  const cards = [...grid.querySelectorAll(".card:not(.new)")];
+
+  let closest = null;
+  let closestDist = Infinity;
+
+  for(const card of cards){
+    if(card === draggedCard) continue;
+
+    const rect = card.getBoundingClientRect();
+
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + rect.height/2;
+
+    const dist = Math.hypot(x - cx, y - cy);
+
+    if(dist < closestDist){
+      closestDist = dist;
+      closest = card;
+    }
+  }
+
+  return closest;
+}
+
+
+
+function updateNotesOrder(){
+  const ordered = [...grid.querySelectorAll(".card:not(.new)")]
+    .map(c=>data.notes[c.dataset.index]);
+
+  data.notes = ordered;
+  save();
+}
+
+
+render();
+</script>
+</body>
+</html>
