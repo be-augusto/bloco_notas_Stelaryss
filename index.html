@@ -812,6 +812,9 @@ let pointerOffsetX = 0;
 let pointerOffsetY = 0;
 let isDragging = false;
 let didDrag = false;
+let startX = 0;
+let startY = 0;
+const DRAG_THRESHOLD = 6;
 
 
 function animateGrid(){
@@ -862,7 +865,6 @@ grid.addEventListener("pointerdown", (e)=>{
   if(!card || card.classList.contains("new")) return;
 
   draggedCard = card;
-  card.setPointerCapture(e.pointerId);
 
   startIndex = [...grid.children].indexOf(card);
    
@@ -870,46 +872,62 @@ grid.addEventListener("pointerdown", (e)=>{
   
 
 
-  placeholder = document.createElement("div");
-  placeholder.className = "card placeholder";
-
-  placeholder.style.width = rect.width + "px";
-  placeholder.style.height = rect.height + "px";
-
-  grid.insertBefore(placeholder, card);
-
 
   pointerOffsetX = e.clientX - rect.left;
   pointerOffsetY = e.clientY - rect.top;
 
 
 
-  card.classList.add("dragging");
 
 
+  startX = e.clientX;
+  startY = e.clientY;
 
-
-  card.style.width = rect.width + "px";
-  card.style.height = rect.height + "px";
-
-  card.style.position = "fixed";
-  card.style.left = (e.clientX - rect.width/2) + "px";
-  card.style.top  = (e.clientY - rect.height/2) + "px";
-
-
-
-  card.style.zIndex = 9999;
-
-  card.style.cursor = "grabbing";
-
-
-  isDragging = true;
+  isDragging = false;
+  didDrag = false;
 });
 
 document.addEventListener("pointermove", (e)=>{
 
-  if(!isDragging || !draggedCard) return;
+if(!draggedCard) return;
+
+const dx = e.clientX - startX;
+const dy = e.clientY - startY;
+const dist = Math.hypot(dx, dy);
+
+if(!isDragging){
+
+  if(dist < DRAG_THRESHOLD) return;
+
+  isDragging = true;
   didDrag = true;
+  draggedCard.setPointerCapture(e.pointerId);
+
+
+  const rect = draggedCard.getBoundingClientRect();
+
+  placeholder = document.createElement("div");
+  placeholder.className = "card placeholder";
+
+  placeholder.style.width = rect.width + "px";
+  placeholder.style.height = rect.height + "px";
+
+  grid.insertBefore(placeholder, draggedCard);
+
+
+  draggedCard.classList.add("dragging");
+
+  draggedCard.style.width = rect.width + "px";
+  draggedCard.style.height = rect.height + "px";
+
+  draggedCard.style.position = "fixed";
+  draggedCard.style.left = rect.left + "px";
+  draggedCard.style.top  = rect.top + "px";
+
+  draggedCard.style.zIndex = 9999;
+  draggedCard.style.cursor = "grabbing";
+}
+
 
 
   const x = e.clientX - pointerOffsetX;
@@ -941,36 +959,44 @@ draggedCard.style.setProperty("--tilt", tilt + "deg");
 });
 
 document.addEventListener("pointerup", (e)=>{
+
   document.body.style.userSelect = "";
 
-
   if(!draggedCard) return;
-  draggedCard.classList.remove("dragging");
 
+  if(isDragging){
 
+    draggedCard.classList.remove("dragging");
 
-  placeholder.replaceWith(draggedCard);
-  placeholder = null;
+    if(placeholder){
+      placeholder.replaceWith(draggedCard);
+      placeholder = null;
+    }
 
-  draggedCard.style.pointerEvents = "";
-  draggedCard.style.position = "";
-  draggedCard.style.left = "";
-  draggedCard.style.top = "";
-  draggedCard.style.width = "";
-  draggedCard.style.height = "";
-  draggedCard.style.zIndex = "";
-  draggedCard.style.transform = "";
-  draggedCard.style.cursor = "";
-  draggedCard.style.transition = "";
+    draggedCard.style.pointerEvents = "";
+    draggedCard.style.position = "";
+    draggedCard.style.left = "";
+    draggedCard.style.top = "";
+    draggedCard.style.width = "";
+    draggedCard.style.height = "";
+    draggedCard.style.zIndex = "";
+    draggedCard.style.transform = "";
+    draggedCard.style.cursor = "";
 
-  updateNotesOrder();
-  draggedCard.releasePointerCapture(e.pointerId);
+    updateNotesOrder();
+
+    try{
+      draggedCard.releasePointerCapture(e.pointerId);
+    }catch{}
+  }
 
   draggedCard = null;
   isDragging = false;
+
   setTimeout(()=> didDrag = false, 50);
 
 });
+
 
 function getClosestCard(x, y){
   const cards = [...grid.querySelectorAll(".card:not(.new)")];
